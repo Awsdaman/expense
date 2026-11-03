@@ -1,0 +1,13 @@
+{
+  "type": "purchase",
+  "direction": "out",
+  "amount": 81.6,
+  "currency": "SAR",
+  "amount_sar": 81.6,
+  "merchant_raw": "S175 Tami",
+  "merchant": "TAMI",
+  "card_last4": "2222",
+  "payment_method": "Mada Apple Pay",
+  "txn_at": "2026-11-03T18:31:00+03:00",
+  "bank": "alrajhi"
+}

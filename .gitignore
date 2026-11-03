@@ -1,0 +1,8 @@
+node_modules/
+.clasp.json
+apps-script/.clasp.json
+.env
+.env.*
+apps-script/lib/
+tests/fixtures/sms/real-*
+.deployment-id

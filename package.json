@@ -1,0 +1,21 @@
+{
+  "name": "iqtifaa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal expense tracker: bank SMS -> Apps Script -> Google Sheet -> PWA dashboard",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "node scripts/build-appsscript.js",
+    "dev": "node scripts/dev-server.js",
+    "icons": "node scripts/make-icons.js",
+    "push": "npm test && npm run build && clasp push",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2",
+    "vitest": "^2.1.8"
+  }
+}

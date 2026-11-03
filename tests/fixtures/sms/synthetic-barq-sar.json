@@ -1,0 +1,13 @@
+{
+  "type": "online",
+  "direction": "out",
+  "amount": 45,
+  "currency": "SAR",
+  "amount_sar": 45,
+  "merchant_raw": "NOON",
+  "merchant": "NOON",
+  "card_last4": "3333",
+  "payment_method": "Visa online",
+  "txn_at": "2026-10-05T09:15:00+03:00",
+  "bank": "barq"
+}

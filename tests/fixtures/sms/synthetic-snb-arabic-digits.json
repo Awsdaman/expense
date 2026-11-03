@@ -1,0 +1,13 @@
+{
+  "type": "purchase",
+  "direction": "out",
+  "amount": 14.5,
+  "currency": "SAR",
+  "amount_sar": 14.5,
+  "merchant_raw": "TEST SHOP",
+  "merchant": "TEST SHOP",
+  "card_last4": "1111",
+  "payment_method": "Mada Apple Pay",
+  "txn_at": "2026-11-03T18:50:00+03:00",
+  "bank": "snb"
+}

@@ -1,0 +1,13 @@
+{
+  "type": "online",
+  "direction": "out",
+  "amount": 6.9,
+  "currency": "USD",
+  "amount_sar": 25.91,
+  "merchant_raw": "OPENAI",
+  "merchant": "OPENAI",
+  "card_last4": "3333",
+  "payment_method": "Visa online",
+  "txn_at": "2026-10-03T20:32:00+03:00",
+  "bank": "barq"
+}

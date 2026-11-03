@@ -1,0 +1,13 @@
+{
+  "type": "purchase",
+  "direction": "out",
+  "amount": 1250.5,
+  "currency": "SAR",
+  "amount_sar": 1250.5,
+  "merchant_raw": "AL MAHA",
+  "merchant": "AL MAHA",
+  "card_last4": "2222",
+  "payment_method": "Mada Apple Pay",
+  "txn_at": "2026-11-03T18:31:00+03:00",
+  "bank": "alrajhi"
+}

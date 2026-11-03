@@ -1,0 +1,13 @@
+{
+  "type": "purchase",
+  "direction": "out",
+  "amount": 14,
+  "currency": "SAR",
+  "amount_sar": 14,
+  "merchant_raw": "khush sha",
+  "merchant": "KHUSH SHA",
+  "card_last4": "1111",
+  "payment_method": "Mada Apple Pay",
+  "txn_at": "2026-11-03T18:50:00+03:00",
+  "bank": "snb"
+}
