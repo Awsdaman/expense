@@ -1,18 +1,15 @@
 // Home: safe to spend with the cycle strip, two compact stats, category budgets, review line.
-import { apiGet, errorMessage } from '../api.js';
+import { errorMessage, loadScreen } from '../api.js';
 import { cycleTitle, money, ordinal } from '../format.js';
 import { budgetBar, cycleStrip, emptyState, errorState, h, offlineLine, pageHead, sectionTitle, skeleton, stat } from '../ui.js';
 
 export async function render(root) {
   root.replaceChildren(skeleton(5));
-  let summary;
   try {
-    summary = await apiGet('summary');
+    await loadScreen(root, [['summary']], ([summary]) => root.replaceChildren(home(summary)));
   } catch (err) {
     root.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => render(root) }));
-    return;
   }
-  root.replaceChildren(home(summary));
 }
 
 function home(s) {

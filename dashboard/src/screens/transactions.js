@@ -1,5 +1,5 @@
 // Activity: every transaction in one cycle (or all cycles while searching), grouped by day, with an edit sheet.
-import { apiGet, apiPost, errorMessage } from '../api.js';
+import { apiGet, apiPost, cachedGet, errorMessage, loadScreen } from '../api.js';
 import { cycleTitle, parseNumber, shortDate, time } from '../format.js';
 import { button, emptyState, errorState, field, h, icon, moneyNode, numberInput, offlineLine, openSheet, pageHead, selectInput, skeleton, textInput, toast } from '../ui.js';
 
@@ -7,15 +7,14 @@ const SEARCH_DEBOUNCE = 250;
 
 export async function render(root, ctx) {
   root.replaceChildren(skeleton(5));
-  let summary;
-  let config;
   try {
-    [summary, config] = await Promise.all([apiGet('summary'), apiGet('config')]);
+    await loadScreen(root, [['summary'], ['config']], ([summary, config]) => show(root, ctx, summary, config));
   } catch (err) {
     root.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => render(root, ctx) }));
-    return;
   }
+}
 
+function show(root, ctx, summary, config) {
   const currency = summary.currency || 'SAR';
   const categories = config.categories.filter((c) => c.active).sort((a, b) => a.sort - b.sort).map((c) => c.name);
   const state = {
@@ -51,7 +50,7 @@ export async function render(root, ctx) {
       h('div', { class: 'cycle-nav' }, prev, title, next)),
     list));
   paintNav();
-  await loadList();
+  loadList();
 
   search.addEventListener('input', () => {
     clearTimeout(timer);
@@ -74,7 +73,7 @@ export async function render(root, ctx) {
   async function step(delta) {
     const target = shiftCycle(state.cycle, delta);
     try {
-      const s = await apiGet('summary', { cycle: target });
+      const s = cachedGet('summary', { cycle: target }) || await apiGet('summary', { cycle: target });
       state.cycle = target;
       state.start = s.start;
       state.end = s.end;
@@ -89,14 +88,16 @@ export async function render(root, ctx) {
   async function loadList() {
     const seq = ++state.seq;
     const params = state.q ? { q: state.q } : { cycle: state.cycle };
+    const saved = cachedGet('transactions', params);
+    if (saved) paintList(saved.transactions);
     let data;
     try {
       data = await apiGet('transactions', params);
     } catch (err) {
-      if (seq === state.seq) list.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => loadList() }));
+      if (seq === state.seq && !saved) list.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => loadList() }));
       return;
     }
-    if (seq !== state.seq) return;
+    if (seq !== state.seq || (saved && JSON.stringify(data) === JSON.stringify(saved))) return;
     state.stale = Boolean(data.stale);
     state.cachedAt = data.cachedAt;
     paintList(data.transactions);

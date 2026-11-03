@@ -1,5 +1,5 @@
 // Inbox: pending purchases to categorize or ignore, then bank SMS the parser could not read.
-import { apiGet, apiPost, errorMessage } from '../api.js';
+import { apiPost, errorMessage, loadScreen } from '../api.js';
 import { parseNumber, shortDate, time } from '../format.js';
 import { button, emptyState, errorState, field, h, icon, moneyNode, numberInput, offlineLine, openSheet, pageHead, selectInput, sectionTitle, skeleton, textInput, toast } from '../ui.js';
 
@@ -7,15 +7,14 @@ const SWIPE_DISTANCE = 80;
 
 export async function render(root, ctx) {
   root.replaceChildren(skeleton(4));
-  let inbox;
-  let config;
   try {
-    [inbox, config] = await Promise.all([apiGet('transactions', { status: 'pending' }), apiGet('config')]);
+    await loadScreen(root, [['transactions', { status: 'pending' }], ['config']], ([inbox, config]) => show(root, ctx, inbox, config));
   } catch (err) {
     root.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => render(root, ctx) }));
-    return;
   }
+}
 
+function show(root, ctx, inbox, config) {
   const categories = config.categories.filter((c) => c.active).sort((a, b) => a.sort - b.sort).map((c) => c.name);
   const state = {
     pending: inbox.transactions,

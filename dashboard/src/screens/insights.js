@@ -1,5 +1,5 @@
 // Insights: this cycle against the average of the last 3 cycles, top merchants, needs and wants, recurring charges.
-import { apiGet, errorMessage } from '../api.js';
+import { errorMessage, loadScreen } from '../api.js';
 import { cycleTitle, money } from '../format.js';
 import { card, cycleStrip, errorState, h, listRow, moneyNode, offlineLine, pageHead, sectionTitle, skeleton } from '../ui.js';
 
@@ -7,14 +7,11 @@ const MINUS = '−';
 
 export async function render(root) {
   root.replaceChildren(skeleton(6));
-  let summary;
   try {
-    summary = await apiGet('summary');
+    await loadScreen(root, [['summary']], ([summary]) => root.replaceChildren(insights(summary)));
   } catch (err) {
     root.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => render(root) }));
-    return;
   }
-  root.replaceChildren(insights(summary));
 }
 
 function insights(s) {

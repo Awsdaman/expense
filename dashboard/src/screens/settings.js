@@ -1,5 +1,5 @@
 // Settings: budget cycle, category editor with one save, connection.
-import { apiGet, apiPost, clearConfig, errorMessage, loadConfig } from '../api.js';
+import { apiPost, clearConfig, errorMessage, loadConfig, loadScreen } from '../api.js';
 import { parseNumber } from '../format.js';
 import { button, card, errorState, h, numberInput, offlineLine, pageHead, sectionTitle, segmented, skeleton, textInput, toast } from '../ui.js';
 
@@ -7,14 +7,11 @@ const KINDS = [{ value: 'need', label: 'Need' }, { value: 'want', label: 'Want' 
 
 export async function render(root, ctx) {
   root.replaceChildren(skeleton(6));
-  let data;
   try {
-    data = await apiGet('config');
+    await loadScreen(root, [['config']], ([data]) => root.replaceChildren(screen(data, root, ctx)));
   } catch (err) {
     root.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => render(root, ctx) }));
-    return;
   }
-  root.replaceChildren(screen(data, root, ctx));
 }
 
 function screen(data, root, ctx) {

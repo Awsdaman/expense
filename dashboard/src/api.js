@@ -2,6 +2,7 @@
 
 const CONFIG_KEY = 'iq:config';
 const CACHE_PREFIX = 'iq:cache:';
+const CHANGED_KEY = 'iq:changed';
 
 const MESSAGES = {
   offline: "Couldn't reach the server",
@@ -107,6 +108,49 @@ function writeCache(key, data) {
   }
 }
 
+// Every save moves this mark forward. Copies older than it still serve offline, but are not shown first.
+function markChanged() {
+  try {
+    localStorage.setItem(CHANGED_KEY, new Date().toISOString());
+  } catch {
+    // storage blocked: copies are then never shown first
+  }
+}
+
+// The saved copy of a GET, or null when there is none or a save happened after it.
+export function cachedGet(action, params = {}) {
+  const cached = readCache(cacheKey(action, cleanParams(params)));
+  let changed = '';
+  try {
+    changed = localStorage.getItem(CHANGED_KEY) || '';
+  } catch {
+    return null;
+  }
+  return cached && cached.at > changed ? cached.data : null;
+}
+
+// Apps Script takes about 2 s per call, so a screen paints its saved copies at once and repaints
+// when fresh data differs. The repaint is skipped once the person taps or types on the screen,
+// or after they left it. Throws only when there was nothing to show.
+export async function loadScreen(root, requests, paint) {
+  const saved = requests.map(([action, params]) => cachedGet(action, params));
+  const shown = saved.every(Boolean) ? saved : null;
+  if (shown) paint(shown);
+  let touched = false;
+  for (const type of ['pointerdown', 'keydown', 'input']) {
+    root.addEventListener(type, () => { touched = true; }, { capture: true, once: true });
+  }
+  let fresh;
+  try {
+    fresh = await Promise.all(requests.map(([action, params]) => apiGet(action, params)));
+  } catch (err) {
+    if (shown) return;
+    throw err;
+  }
+  if (!root.isConnected || (shown && (touched || JSON.stringify(fresh) === JSON.stringify(shown)))) return;
+  paint(fresh);
+}
+
 // GET. Offline with a cached copy -> { ...copy, stale: true, cachedAt }.
 export async function apiGet(action, params = {}) {
   const cfg = requireConfig();
@@ -128,11 +172,13 @@ export async function apiGet(action, params = {}) {
 // POST with a text/plain body, so the browser sends no preflight to Apps Script.
 export async function apiPost(action, body = {}) {
   const cfg = requireConfig();
-  return send(cfg.url, {
+  const data = await send(cfg.url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ ...body, action, token: cfg.token }),
   });
+  markChanged();
+  return data;
 }
 
 // Setup uses this before anything is saved: calls action=config and returns { settings, categories }.
