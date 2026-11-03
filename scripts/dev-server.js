@@ -10,6 +10,8 @@ import { buildSeed } from '../src/dev/seed.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DASHBOARD_DIR = path.join(ROOT, 'dashboard');
 const PORT = Number(process.env.PORT) || 5173;
+// HOST=0.0.0.0 opens the server to the local network, e.g. to try the dashboard on a phone.
+const HOST = process.env.HOST || 'localhost';
 const DEV_TOKEN = 'dev-token';
 const MAX_BODY_BYTES = 1024 * 1024;
 const EMPTY = process.argv.includes('--empty');
@@ -142,7 +144,7 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, 'localhost', () => {
+server.listen(PORT, HOST, () => {
   console.log(`Iqtifaa dev server: http://localhost:${PORT}  (API: http://localhost:${PORT}/api, token: ${DEV_TOKEN})`);
   if (EMPTY) console.log('Started with --empty: Categories and Settings only.');
 });

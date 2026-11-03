@@ -3,7 +3,8 @@ import { button, field, h, pageHead, textInput } from '../ui.js';
 import { errorMessage, loadConfig, saveConfig, testConnection } from '../api.js';
 
 function defaultUrl() {
-  return location.hostname === 'localhost' ? `${location.origin}/api` : '';
+  // Plain http means the local dev server, which serves the API at /api.
+  return location.protocol === 'http:' ? `${location.origin}/api` : '';
 }
 
 function isWebUrl(text) {
