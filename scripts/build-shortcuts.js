@@ -65,7 +65,8 @@ for (const file of readdirSync(SRC).filter((f) => f.endsWith('.cherri'))) {
     continue;
   }
   const signed = await sign(name, xml);
-  const target = join(OUT, `${basename(file, '.cherri')}.shortcut`);
+  // iOS names an added Shortcut after its file, and Log last bank SMS runs "Log Expense" by name.
+  const target = join(OUT, `${name}.shortcut`);
   writeFileSync(target, signed);
   console.log(`${name} -> ${target} (${signed.length} bytes)`);
 }
