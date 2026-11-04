@@ -1,0 +1,20 @@
+// Iqtifaa Pending: run by the 9:30 PM automation; reminds you when purchases wait in the inbox.
+#define name Iqtifaa Pending
+#define color green
+
+#include 'actions/web'
+
+#question apiUrl "Paste your Iqtifaa Web App URL (it ends in /exec)" ""
+#question apiToken "Paste your Iqtifaa API token" ""
+
+const url = text(apiUrl)
+const token = text(apiToken)
+
+const reply = downloadURL("{url}?action=pending_count&token={token}")
+const res = getDictionary(reply)
+const count = getValue(res, "count")
+
+if count.number > 0 {
+    showNotification("You have {count} items to check in the Iqtifaa inbox.", "Iqtifaa")
+    openURL("https://awsdaman.github.io/expense/#/inbox")
+}

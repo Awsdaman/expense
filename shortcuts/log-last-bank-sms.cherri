@@ -1,0 +1,9 @@
+// Log last bank SMS: copy a bank SMS in Messages, then run this to log it. Holds no URL or token.
+#define name Log last bank SMS
+#define color green
+
+#include 'actions/sharing'
+#include 'actions/shortcuts'
+
+const clip = getClipboard()
+run("Log Expense", clip)

@@ -16,6 +16,26 @@ Throughout this guide:
 
 ---
 
+## Quick install (replaces Parts A, C1 and D)
+
+The three Shortcuts are ready-made, signed files. They hold no URL or token.
+
+1. On the iPhone, open https://awsdaman.github.io/expense/shortcuts/index.html in Safari. The dashboard also links to it, under Settings → Connection.
+2. Tap **1. Log Expense**. Tap **Allow** or **Download** if Safari asks, then **Add Shortcut**.
+3. When it asks, paste the Web App URL (`API_URL`), then the token (`TOKEN`).
+4. Repeat for **2. Iqtifaa Pending**, which asks for the same two values, and **3. Log last bank SMS**, which asks for nothing.
+5. Build the automations by hand: Part B for each bank, then Part C2. Apple does not let automations be imported.
+
+To change the URL or token later, open the Shortcut in the Shortcuts app and edit its first two Text actions.
+
+Log Expense skips the optional note in step 17. It also notifies you when the API rejects a request, for example after a token change.
+
+The sources are in `shortcuts/*.cherri`. To rebuild the files, run `scripts/build-shortcuts.js` (see its header). Rebuilding sends the Shortcut, with no URL or token, to RoutineHub's HubSign service, because signing on Windows needs it.
+
+Parts A, C1 and D below describe the same Shortcuts built by hand.
+
+---
+
 ## Part A: Build "Log Expense"
 
 This Shortcut is run by the bank automations (Part B) and by the recovery Shortcut (Part D). It takes the SMS text as its input.

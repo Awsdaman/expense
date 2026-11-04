@@ -1,0 +1,53 @@
+// Log Expense: send the bank SMS to the API, ask for the category when the API asks, send the answer back.
+// No logic beyond "does this field have text": parsing, dedupe and learning stay on the server.
+#define name Log Expense
+#define color green
+
+#include 'actions/web'
+
+// Asked once when the Shortcut is added, so the file itself holds no URL or token.
+#question apiUrl "Paste your Iqtifaa Web App URL (it ends in /exec)" ""
+#question apiToken "Paste your Iqtifaa API token" ""
+
+const url = text(apiUrl)
+const token = text(apiToken)
+@sms = "{ShortcutInput}"
+
+const ingest = jsonRequest("{url}", "POST", {"action": "ingest", "token": "{token}", "sms": "{@sms}"})
+const res = getDictionary(ingest)
+
+const error = getValue(res, "error")
+if error {
+    showNotification("Not saved ({error}). Run Log last bank SMS later.", "Iqtifaa")
+    stop()
+}
+
+const prompt = getValue(res, "prompt")
+if !prompt {
+    // Ignored SMS (OTP, declined, marketing) has no message: stop silently.
+    const message = getValue(res, "message")
+    if message {
+        showNotification("{message}", "Iqtifaa")
+    }
+    stop()
+}
+
+const categories = getValue(res, "categories")
+const txnValue = getValue(res, "txn")
+const txn = getDictionary(txnValue)
+const id = getValue(txn, "id")
+const chosen = chooseFromList(categories, "{prompt}")
+
+const answer = jsonRequest("{url}", "POST", {"action": "categorize", "token": "{token}", "id": "{id}", "category": "{chosen}"})
+const result = getDictionary(answer)
+
+const failed = getValue(result, "error")
+if failed {
+    showNotification("Not saved. Check the dashboard inbox.", "Iqtifaa")
+    stop()
+}
+
+const alertText = getValue(result, "alert")
+if alertText {
+    showNotification("{alertText}", "Iqtifaa")
+}

@@ -270,7 +270,8 @@ function screen(data, root, ctx) {
         button({ label: 'Add category', variant: 'secondary', iconName: 'plus', block: true, onClick: addRow }))),
     h('section', null,
       sectionTitle('Connection'),
-      connection(ctx)),
+      connection(ctx),
+      h('a', { class: 'quiet-link', href: './shortcuts/index.html' }, 'Install the iPhone Shortcuts')),
     h('div', { class: 'savebar' }, status, saveBtn));
 }
 
