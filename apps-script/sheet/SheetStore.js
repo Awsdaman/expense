@@ -27,7 +27,7 @@ function createSheetStore(ss) {
       return sheet.getRange(2, 1, last - 1, headers.length).getValues().map(function (row) {
         var obj = {};
         headers.forEach(function (h, i) {
-          if (h) obj[h] = cellValue_(row[i]);
+          if (h) obj[h] = h === 'cycle' ? cycleValue_(row[i], ss) : cellValue_(row[i]);
         });
         return obj;
       });
@@ -71,6 +71,11 @@ function cellValue_(v) {
   if (v === null || v === undefined || v === '') return '';
   if (v instanceof Date) return Utilities.formatDate(v, 'Asia/Riyadh', "yyyy-MM-dd'T'HH:mm:ssXXX");
   return v;
+}
+
+// Sheets can turn the text "2026-10" into a date. Its own time zone gives back the month it parsed.
+function cycleValue_(v, ss) {
+  return v instanceof Date ? Utilities.formatDate(v, ss.getSpreadsheetTimeZone(), 'yyyy-MM') : cellValue_(v);
 }
 
 function toCell_(v) {
