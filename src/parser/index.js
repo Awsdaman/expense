@@ -1,10 +1,10 @@
 import { toLines } from './normalize.js';
 import { ignoreReason } from './ignore.js';
-import { barqParser } from './banks/barq.js';
-import { alrajhiParser } from './banks/alrajhi.js';
+import { barqParser, barqTransferParser } from './banks/barq.js';
+import { alrajhiParser, alrajhiTransferParser } from './banks/alrajhi.js';
 import { snbParser } from './banks/snb.js';
 
-const parsers = [barqParser, alrajhiParser, snbParser];
+const parsers = [barqParser, barqTransferParser, alrajhiParser, alrajhiTransferParser, snbParser];
 
 export function parseSms(text, opts = {}) {
   const lines = toLines(text);

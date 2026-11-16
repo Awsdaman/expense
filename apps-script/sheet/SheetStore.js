@@ -27,7 +27,10 @@ function createSheetStore(ss) {
       return sheet.getRange(2, 1, last - 1, headers.length).getValues().map(function (row) {
         var obj = {};
         headers.forEach(function (h, i) {
-          if (h) obj[h] = h === 'cycle' ? cycleValue_(row[i], ss) : cellValue_(row[i]);
+          if (!h) return;
+          if (h === 'cycle') obj[h] = cycleValue_(row[i], ss);
+          else if (h === 'value') obj[h] = settingValue_(row[i], ss);
+          else obj[h] = cellValue_(row[i]);
         });
         return obj;
       });
@@ -76,6 +79,11 @@ function cellValue_(v) {
 // Sheets can turn the text "2026-10" into a date. Its own time zone gives back the month it parsed.
 function cycleValue_(v, ss) {
   return v instanceof Date ? Utilities.formatDate(v, ss.getSpreadsheetTimeZone(), 'yyyy-MM') : cellValue_(v);
+}
+
+// A Settings value such as "2026-11-16" can come back as a date. Read it as a plain date in the Sheet's zone.
+function settingValue_(v, ss) {
+  return v instanceof Date ? Utilities.formatDate(v, ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd') : cellValue_(v);
 }
 
 function toCell_(v) {

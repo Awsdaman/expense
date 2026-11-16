@@ -1,6 +1,8 @@
-// Settings: budget cycle, category editor with one save, connection.
-import { apiPost, clearConfig, errorMessage, loadConfig, loadScreen } from '../api.js';
+// Settings: tracking period (or budget cycle), category editor with one save, connection.
+// While tracking, budget amounts, savings target and alert threshold are hidden but kept.
+import { apiGet, apiPost, clearConfig, errorMessage, loadConfig, loadScreen } from '../api.js';
 import { parseNumber } from '../format.js';
+import { openLimitsSheet } from '../tracking.js';
 import { button, card, errorState, h, numberInput, offlineLine, pageHead, sectionTitle, segmented, skeleton, textInput, toast } from '../ui.js';
 
 const KINDS = [{ value: 'need', label: 'Need' }, { value: 'want', label: 'Want' }];
@@ -17,6 +19,7 @@ export async function render(root, ctx) {
 function screen(data, root, ctx) {
   const { settings, categories = [], stale, cachedAt } = data;
   const currency = settings.currency || 'SAR';
+  const tracking = settings.mode === 'tracking';
   const orig = {
     cycle_start_day: Number(settings.cycle_start_day),
     savings_target: Number(settings.savings_target) || 0,
@@ -26,6 +29,8 @@ function screen(data, root, ctx) {
     cycle: String(settings.cycle_start_day ?? ''),
     savings: String(orig.savings_target),
     alert: percentText(settings.alert_threshold),
+    start: String(settings.tracking_start || ''),
+    end: String(settings.tracking_end || ''),
     rows: categories.map(toRow),
     saving: false,
   };
@@ -45,6 +50,15 @@ function screen(data, root, ctx) {
       hint: 'Warn when a category reaches this share of its budget',
       control: numberInput({ value: state.alert, onInput: (e) => { state.alert = e.target.value; refresh(); } }),
     }),
+    start: fieldBox({
+      label: 'Tracking starts',
+      control: h('input', { class: 'input', type: 'date', value: state.start, onInput: (e) => { state.start = e.target.value; refresh(); } }),
+    }),
+    end: fieldBox({
+      label: 'Tracking ends',
+      hint: 'The day after the last tracked day. Suggested limits show on Home from this day.',
+      control: h('input', { class: 'input', type: 'date', value: state.end, onInput: (e) => { state.end = e.target.value; refresh(); } }),
+    }),
   };
 
   const list = h('div', { class: 'card flush' });
@@ -57,10 +71,14 @@ function screen(data, root, ctx) {
       label: `Budget (${currency})`,
       control: numberInput({ value: row.budget, onInput: (e) => { row.budget = e.target.value; refresh(); } }),
     });
-    const kind = fieldBox({
-      label: 'Kind',
-      control: segmented({ options: KINDS, value: row.kind, label: 'Kind', onChange: (v) => { row.kind = v; refresh(); } }),
-    });
+    const own = row.kind === 'own';
+    const kind = own
+      ? { el: h('p', { class: 'own-note' }, 'Transfers to your own accounts. Never counted as spending.') }
+      : fieldBox({
+        label: 'Kind',
+        control: segmented({ options: KINDS, value: row.kind, label: 'Kind', onChange: (v) => { row.kind = v; refresh(); } }),
+      });
+    const showBudget = !tracking && !own;
 
     let nameNode;
     if (row.renaming) {
@@ -122,7 +140,7 @@ function screen(data, root, ctx) {
     return h('div', { class: row.active ? 'cedit' : 'cedit is-archived' },
       h('div', { class: 'cedit-head' }, nameNode, action),
       nameErr,
-      h('div', { class: 'cedit-fields' }, budget.el, kind.el));
+      h('div', { class: showBudget ? 'cedit-fields' : 'cedit-fields is-single' }, showBudget ? budget.el : null, kind.el));
   }
 
   // Active rows first, then archived. New rows sit after the active ones.
@@ -183,6 +201,18 @@ function screen(data, root, ctx) {
     errors.alert = alert.error || null;
     if (!alert.error && Math.abs(alert.value - orig.alert_threshold) > 1e-9) body.alert_threshold = alert.value;
 
+    errors.start = null;
+    errors.end = null;
+    if (tracking) {
+      if (!DATE_RE.test(state.start)) errors.start = 'Pick a date';
+      if (!DATE_RE.test(state.end)) errors.end = 'Pick a date';
+      else if (!errors.start && state.end <= state.start) errors.end = 'Pick a day after the start';
+      if (!errors.start && !errors.end) {
+        if (state.start !== settings.tracking_start) body.tracking_start = state.start;
+        if (state.end !== settings.tracking_end) body.tracking_end = state.end;
+      }
+    }
+
     const counts = new Map();
     for (const row of state.rows) {
       const key = row.name.trim().toLowerCase();
@@ -214,7 +244,7 @@ function screen(data, root, ctx) {
     }
     if (categories.length) body.categories = categories;
 
-    const valid = !errors.cycle && !errors.savings && !errors.alert && rowsValid;
+    const valid = !errors.cycle && !errors.savings && !errors.alert && !errors.start && !errors.end && rowsValid;
     return { errors, rowErrors, body, dirty: Object.keys(body).length > 0, valid };
   }
 
@@ -223,6 +253,8 @@ function screen(data, root, ctx) {
     fields.cycle.setError(result.errors.cycle);
     fields.savings.setError(result.errors.savings);
     fields.alert.setError(result.errors.alert);
+    fields.start.setError(result.errors.start);
+    fields.end.setError(result.errors.end);
     for (const row of state.rows) {
       if (!row.ui) continue;
       const err = result.rowErrors.get(row) || {};
@@ -257,12 +289,48 @@ function screen(data, root, ctx) {
 
   drawList();
 
+  async function reviewLimits() {
+    try {
+      const summary = await apiGet('summary');
+      if (!summary.tracking) return;
+      openLimitsSheet(summary.tracking, currency, () => ctx.navigate('#/home'));
+    } catch (err) {
+      toast(errorMessage(err));
+    }
+  }
+
+  async function startTracking() {
+    const start = todayRiyadh();
+    try {
+      const fresh = await apiPost('settings', { mode: 'tracking', tracking_start: start, tracking_end: addMonths(start, 2) });
+      toast('Tracking for 2 months. Budgets are hidden.');
+      root.replaceChildren(screen(fresh, root, ctx));
+    } catch (err) {
+      toast(errorMessage(err));
+    }
+  }
+
+  const trackingSection = tracking
+    ? h('section', null,
+      sectionTitle('Tracking'),
+      card(h('div', { class: 'form-stack' },
+        h('p', { class: 'quiet' }, 'No budgets or alerts while tracking. Your budget numbers stay saved for later.'),
+        fields.start.el,
+        fields.end.el,
+        button({ label: 'Review suggested limits now', variant: 'secondary', block: true, onClick: reviewLimits }))))
+    : h('section', null,
+      sectionTitle('Tracking'),
+      card(h('div', { class: 'form-stack' },
+        h('p', { class: 'quiet' }, 'Hide budgets for 2 months and only record where the money goes.'),
+        button({ label: 'Track for 2 months', variant: 'secondary', block: true, onClick: startTracking }))));
+
   return h('div', { class: 'stack' },
     pageHead('Settings'),
     stale ? offlineLine(cachedAt) : null,
+    trackingSection,
     h('section', null,
-      sectionTitle('Budget cycle'),
-      card(h('div', { class: 'form-stack' }, fields.cycle.el, fields.savings.el, fields.alert.el))),
+      sectionTitle(tracking ? 'Salary cycle' : 'Budget cycle'),
+      card(h('div', { class: 'form-stack' }, fields.cycle.el, tracking ? null : fields.savings.el, tracking ? null : fields.alert.el))),
     h('section', null,
       sectionTitle('Categories'),
       h('div', { class: 'section-body' },
@@ -307,7 +375,7 @@ function toRow(c) {
     isNew: false,
     name: c.name,
     budget: String(budget),
-    kind: c.kind === 'need' ? 'need' : 'want',
+    kind: c.kind === 'need' || c.kind === 'own' ? c.kind : 'want',
     active,
     renaming: false,
     ui: null,
@@ -334,6 +402,23 @@ function fieldBox({ label, hint, control }) {
       if (control.tagName === 'INPUT') control.setAttribute('aria-invalid', String(Boolean(msg)));
     },
   };
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function todayRiyadh() {
+  return new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10);
+}
+
+// "2026-11-16" + 2 -> "2027-01-16". A day past the month's end rolls back to its last day.
+function addMonths(date, n) {
+  const [y, m, d] = date.split('-').map(Number);
+  const total = y * 12 + (m - 1) + n;
+  const year = Math.floor(total / 12);
+  const month = total - year * 12 + 1;
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const pad = (v) => String(v).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(Math.min(d, last))}`;
 }
 
 function percentText(fraction) {

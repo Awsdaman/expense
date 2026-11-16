@@ -115,6 +115,11 @@ describe('parseSlashDate', () => {
     expect(parseSlashDate('31/12/25 23:59')).toBe('2025-12-31T23:59:00+03:00');
   });
 
+  it('reads a year-first yy/mm/dd date when day-first would land before 2020', () => {
+    expect(parseSlashDate('26/11/15 18:54')).toBe('2026-11-15T18:54:00+03:00');
+    expect(parseSlashDate('15/11/26 18:54')).toBe('2026-11-15T18:54:00+03:00');
+  });
+
   it('returns null for invalid day, month or missing date', () => {
     expect(parseSlashDate('32/11/26 18:50')).toBeNull();
     expect(parseSlashDate('03/13/26 18:50')).toBeNull();

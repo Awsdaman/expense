@@ -1,0 +1,13 @@
+{
+  "type": "transfer_out",
+  "direction": "out",
+  "amount": 1500,
+  "currency": "SAR",
+  "amount_sar": 1500,
+  "merchant_raw": "SAMI ALHA**",
+  "merchant": "SAMI ALHA",
+  "card_last4": null,
+  "payment_method": "Transfer",
+  "txn_at": "2026-11-14T22:38:00+03:00",
+  "bank": "barq"
+}

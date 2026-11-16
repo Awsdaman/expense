@@ -44,3 +44,35 @@ export const barqParser = {
     };
   },
 };
+
+const barqTransferAmountRe = /^Amount:\s*(.+)$/;
+
+// Outgoing transfer: "Debit Transfer Internal", "Amount: 1500 SAR", "To: NAME**", "To A/C:**3392", date.
+export const barqTransferParser = {
+  id: 'barq-transfer',
+  senders: ['BARQ'],
+  match(lines) {
+    return /^Debit Transfer\b/i.test(lines[0]) && lines.some((l) => barqTransferAmountRe.test(l)) && lines.some((l) => l.startsWith('To:'));
+  },
+  parse(lines) {
+    const amountMatch = lines.map((l) => barqTransferAmountRe.exec(l)).find(Boolean);
+    const money = amountMatch ? parseMoney(amountMatch[1]) : null;
+    const toLine = lines.find((l) => l.startsWith('To:'));
+    const merchantRaw = toLine ? toLine.slice(3).trim() : '';
+    if (!money || !merchantRaw) return null;
+    const dateLine = lines.map(parseIsoLikeDate).find(Boolean);
+    return {
+      type: 'transfer_out',
+      direction: 'out',
+      amount: money.amount,
+      currency: money.currency,
+      amount_sar: money.currency === 'SAR' ? money.amount : null,
+      merchant_raw: merchantRaw,
+      merchant: normalizeMerchant(merchantRaw.replace(/\*+$/, '')),
+      card_last4: null,
+      payment_method: 'Transfer',
+      txn_at: dateLine || null,
+      bank: 'barq',
+    };
+  },
+};

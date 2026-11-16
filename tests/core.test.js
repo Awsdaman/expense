@@ -5,7 +5,7 @@ import { riyadhDate, cycleStartDate, cycleLabel, cycleBounds, shiftCycle, daysBe
 import { hashText, makeId, safeEqual } from '../src/core/hash.js';
 import { merchantRules, suggestCategory, autoCategory, displayNameFor, learnRule } from '../src/core/rules.js';
 import { spendAmount, budgetStatus, computeSummary, detectRecurring } from '../src/core/summary.js';
-import { monthlyReport, weeklyNudge, healthWarning } from '../src/core/report.js';
+import { monthlyReport, weeklyNudge, healthWarning, trackingDoneEmail } from '../src/core/report.js';
 
 const NOW = '2026-11-03T18:50:00+03:00';
 
@@ -64,9 +64,10 @@ describe('settings', () => {
     expect(TAB_HEADERS.Transactions[0]).toBe('id');
     expect(TAB_HEADERS.Settings).toEqual(['key', 'value']);
     expect(Object.keys(TAB_HEADERS)).toHaveLength(5);
-    expect(STARTER_CATEGORIES).toHaveLength(14);
+    expect(STARTER_CATEGORIES).toHaveLength(15);
     expect(STARTER_CATEGORIES[0].name).toBe('Food & Restaurants');
     expect(STARTER_CATEGORIES[13].name).toBe('Other');
+    expect(STARTER_CATEGORIES[14]).toMatchObject({ name: 'Own account', kind: 'own', monthly_budget: 0 });
     expect(DEFAULT_SETTINGS.cycle_start_day).toBe(27);
   });
 
@@ -408,6 +409,20 @@ describe('healthWarning', () => {
   });
 });
 
+const TRACKING_SAMPLE = {
+  start: '2026-11-16', end: '2027-01-16', days_total: 61, days_elapsed: 14,
+  totals: { net_spent: 1915, daily_avg: 136.79, income: 9000, monthly_avg: 4163.9 },
+  categories: [
+    { name: 'Family', spent: 1500, share: 0.78 },
+    { name: 'Coffee', spent: 100, share: 0.05 },
+    { name: 'Uncategorized', spent: 45, share: 0.02 },
+  ],
+  suggestions: [
+    { name: 'Coffee', monthly_avg: 217.43, suggested: 250 },
+    { name: 'Travel', monthly_avg: 0, suggested: 0 },
+  ],
+};
+
 describe('report', () => {
   it('monthlyReport subject, lines and biggest increase vs previous', () => {
     const s = dataset();
@@ -428,6 +443,28 @@ describe('report', () => {
   it('monthlyReport skips the increase line when previous is null', () => {
     const r = monthlyReport(dataset(), null);
     expect(r.text).not.toContain('Biggest increase');
+  });
+
+  it('in tracking mode the monthly report drops the savings target', () => {
+    const r = monthlyReport(dataset(), null, TRACKING_SAMPLE);
+    expect(r.text).toContain('Saved: 4,172.50 SAR');
+    expect(r.text).not.toContain('target');
+  });
+
+  it('in tracking mode the weekly email shows where the money went, not safe to spend', () => {
+    const r = weeklyNudge(dataset(), TRACKING_SAMPLE);
+    expect(r.subject).toBe('Iqtifaa: where your money went this week');
+    expect(r.text).toContain('Day 14 of 61');
+    expect(r.text).toContain('Daily average: 136.79 SAR');
+    expect(r.text).toContain('- Family: 1,500 SAR (78%)');
+    expect(r.text).toContain('- Not categorized yet: 45 SAR (2%)');
+    expect(r.text).not.toContain('Safe to spend');
+  });
+
+  it('the tracking-done email lists the suggested limits', () => {
+    const r = trackingDoneEmail(TRACKING_SAMPLE, 'SAR');
+    expect(r.text).toContain('- Coffee: 250 SAR (average 217.43 SAR)');
+    expect(r.text).not.toContain('Travel');
   });
 
   it('weeklyNudge shows spent so far, safe to spend, pace and days left', () => {

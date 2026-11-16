@@ -1,6 +1,8 @@
-// Insights: this cycle against the average of the last 3 cycles, top merchants, needs and wants, recurring charges.
+// Insights. Tracking mode: week by week, days and times, purchase sizes, recurring vs one-off, top merchants,
+// needs and wants over the tracking period. Budget mode: this cycle against the last 3 cycles and the same lists.
 import { errorMessage, loadScreen } from '../api.js';
-import { cycleTitle, money } from '../format.js';
+import { cycleTitle, money, shortDate } from '../format.js';
+import { categoryLabel, periodTitle } from '../tracking.js';
 import { card, cycleStrip, errorState, h, listRow, moneyNode, offlineLine, pageHead, sectionTitle, skeleton } from '../ui.js';
 
 const MINUS = '−';
@@ -8,7 +10,8 @@ const MINUS = '−';
 export async function render(root) {
   root.replaceChildren(skeleton(6));
   try {
-    await loadScreen(root, [['summary']], ([summary]) => root.replaceChildren(insights(summary)));
+    await loadScreen(root, [['summary']], ([summary]) => root.replaceChildren(
+      summary.mode === 'tracking' && summary.tracking ? trackingInsights(summary) : insights(summary)));
   } catch (err) {
     root.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => render(root) }));
   }
@@ -32,6 +35,109 @@ function insights(s) {
     h('section', null,
       sectionTitle('Recurring charges'),
       recurringList(recurring, currency)));
+}
+
+function trackingInsights(s) {
+  const { currency, stale, cachedAt } = s;
+  const t = s.tracking;
+  const p = t.patterns;
+  const empty = t.totals.count === 0;
+  return h('div', { class: 'stack' },
+    pageHead('Insights', `Tracking ${periodTitle(t)}`),
+    stale ? offlineLine(cachedAt) : null,
+    empty ? quietCard('Nothing spent in the tracking period yet. Patterns show up after a few purchases.') : null,
+    h('section', null,
+      sectionTitle('Week by week'),
+      weekList(t.weeks, currency)),
+    h('section', null,
+      sectionTitle('Days of the week'),
+      meterList(p.weekdays.map((d) => ({ name: d.label, total: d.total, sub: countText(d.count) })), currency)),
+    h('section', null,
+      sectionTitle('Time of day'),
+      meterList(p.times.map((b) => ({ name: b.label, total: b.total, sub: countText(b.count) })), currency)),
+    h('section', null,
+      sectionTitle('Purchase sizes'),
+      meterList(p.sizes.map((b) => ({ name: sizeLabel(b.key, currency), total: b.total, sub: countText(b.count) })), currency),
+      h('p', { class: 'quiet cmp-caption' }, 'Many small purchases can add up to more than one big one')),
+    h('section', null,
+      sectionTitle('Recurring and one-off'),
+      fixedSplit(p.recurring, currency)),
+    h('section', null,
+      sectionTitle('Top merchants'),
+      merchants(t.top_merchants, currency)),
+    h('section', null,
+      sectionTitle('Needs and wants'),
+      split(t.needs_wants || {}, currency)));
+}
+
+function sizeLabel(key, currency) {
+  return ({
+    small: `Under 50 ${currency}`,
+    medium: `50 to 199 ${currency}`,
+    large: `200 to 999 ${currency}`,
+    xlarge: `1,000 ${currency} or more`,
+  })[key] || key;
+}
+
+function countText(n) {
+  return `${n} ${n === 1 ? 'purchase' : 'purchases'}`;
+}
+
+// Name, a bar scaled to the largest row, figure and a small line under it.
+function meterList(rows, currency) {
+  const top = Math.max(...rows.map((r) => Number(r.total) || 0), 0);
+  if (top <= 0) return quietCard('Nothing yet');
+  return h('div', { class: 'card flush' }, rows.map((r) => h('div', { class: 'meter' },
+    h('span', { class: 'meter-name', dir: 'auto' }, r.name),
+    h('div', { class: 'meter-track' }, h('span', { class: 'meter-fill', style: { width: `${(r.total / top) * 100}%` } })),
+    h('span', { class: 'meter-end' },
+      h('span', { class: 'meter-fig mono' }, money(r.total), h('span', { class: 'money-unit' }, currency)),
+      r.sub ? h('span', { class: 'meter-sub mono' }, r.sub) : null))));
+}
+
+// One row per 7-day week: total, change from the week before and the category that took the most.
+function weekList(weeks, currency) {
+  if (!weeks.length) return quietCard('The first week has not started yet');
+  const top = Math.max(...weeks.map((w) => w.total), 0);
+  return h('div', { class: 'card flush' }, weeks.map((w, i) => {
+    const last = new Date(Date.parse(`${w.end}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+    const partial = w.days_counted < w.days;
+    const lead = Object.entries(w.categories).sort((a, b) => b[1] - a[1])[0];
+    const prev = i > 0 ? weeks[i - 1].total : null;
+    const delta = prev > 0 && !partial ? Math.round(((w.total - prev) / prev) * 100) : null;
+    const bits = [];
+    if (lead) bits.push(`mostly ${categoryLabel(lead[0])}`);
+    if (partial) bits.push(`${w.days_counted} of ${w.days} days so far`);
+    else if (delta !== null) bits.push(`${delta > 0 ? '+' : delta < 0 ? '−' : ''}${Math.abs(delta)}% vs week before`);
+    return h('div', { class: 'meter' },
+      h('span', { class: 'meter-name' }, `${shortDate(w.start)} – ${shortDate(last)}`),
+      h('div', { class: 'meter-track' }, h('span', { class: 'meter-fill', style: { width: `${top > 0 ? (w.total / top) * 100 : 0}%` } })),
+      h('span', { class: 'meter-end' },
+        h('span', { class: 'meter-fig mono' }, money(w.total), h('span', { class: 'money-unit' }, currency))),
+      bits.length ? h('span', { class: 'meter-note', dir: 'auto' }, bits.join(' · ')) : null);
+  }));
+}
+
+function fixedSplit(r, currency) {
+  const total = r.fixed + r.one_off;
+  if (total <= 0) return quietCard('Nothing spent yet');
+  const parts = [['need', 'Recurring', r.fixed], ['other', 'One-off', r.one_off]];
+  return h('div', { class: 'section-body' },
+    card(
+      h('div', { class: 'split-bar', role: 'img', 'aria-label': parts.map(([, l, v]) => `${l} ${money(v)} ${currency}`).join(', ') },
+        parts.map(([kind, , v]) => h('span', { class: 'split-seg', dataset: { kind }, style: { width: `${(v / total) * 100}%` } }))),
+      h('ul', { class: 'split-legend' }, parts.map(([kind, label, v]) => h('li', { class: 'split-item' },
+        h('span', { class: 'swatch', dataset: { kind } }),
+        h('span', { class: 'split-label' }, label),
+        h('span', { class: 'split-fig mono' }, money(v), h('span', { class: 'money-unit' }, currency)),
+        h('span', { class: 'split-pct mono' }, `${Math.round((v / total) * 100)}%`))))),
+    r.merchants.length
+      ? h('div', { class: 'card flush' }, h('div', { class: 'list' }, r.merchants.map((m) => listRow({
+        title: m.display_name || m.merchant,
+        sub: `about ${money(m.amount)} ${currency} each time`,
+        end: moneyNode(m.total, { currency }),
+      }))))
+      : h('p', { class: 'quiet' }, 'Recurring charges show up once the same merchant charges a similar amount in two different months'));
 }
 
 function quietCard(text) {

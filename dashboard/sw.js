@@ -2,7 +2,7 @@
 // Bump CACHE when the SHELL list changes.
 // The shell list must name every file under src/ (no globbing in a service worker).
 
-const CACHE = 'iq-shell-v1';
+const CACHE = 'iq-shell-v2';
 const SHELL = [
   './',
   './index.html',
@@ -16,6 +16,7 @@ const SHELL = [
   './src/api.js',
   './src/format.js',
   './src/ui.js',
+  './src/tracking.js',
   './src/screens/setup.js',
   './src/screens/home.js',
   './src/screens/inbox.js',

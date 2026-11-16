@@ -190,13 +190,14 @@ export function offlineLine(cachedAt) {
 
 // Cycle strip: a thin line with one tick per day, filled to today, and a label.
 // days_total / days_left come from summary; end is the exclusive end date (the next salary day).
-export function cycleStrip({ days_total, days_left, end }) {
+// label: optional text that replaces the "N days to the Xth" line.
+export function cycleStrip({ days_total, days_left, end, label: text }) {
   const total = Math.max(1, days_total);
   const elapsed = Math.min(total, Math.max(0, total - days_left));
   const pct = (elapsed / total) * 100;
   const day = ordinal(Number(end.slice(8, 10)));
   const ticks = Array.from({ length: total }, (_, i) => h('span', { class: i < elapsed ? 'strip-tick is-past' : 'strip-tick' }));
-  const label = days_left > 0
+  const label = text ? h('p', { class: 'strip-label' }, text) : days_left > 0
     ? h('p', { class: 'strip-label' }, h('span', { class: 'mono' }, String(days_left)), ` ${days_left === 1 ? 'day' : 'days'} to the ${day}`)
     : h('p', { class: 'strip-label' }, `Cycle ended on the ${day}`);
   return h('div', { class: 'strip' },

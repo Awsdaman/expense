@@ -33,7 +33,7 @@ vi.mock('../src/parser/index.js', async (importOriginal) => {
 const TOKEN = 't0k3n-for-tests';
 const NOW = '2026-11-03T19:00:00+03:00';
 const LATER = '2026-11-03T19:11:00+03:00';
-const STARTER_NAMES = STARTER_CATEGORIES.map((c) => c.name);
+const STARTER_NAMES = STARTER_CATEGORIES.filter((c) => c.kind !== 'own').map((c) => c.name);
 const COFFEE_EMOJI = STARTER_CATEGORIES.find((c) => c.name === 'Coffee').emoji;
 
 const SNB_SMS = ['شراء-POS', 'بـ14 SAR', 'من khush sha', 'مدى-ابل*1111', 'في 03/11/26 18:50'].join('\n');
@@ -52,10 +52,11 @@ function makeRandom(seed) {
   };
 }
 
-function setup(seedExtra = {}) {
+// settings: overrides for DEFAULT_SETTINGS, e.g. { mode: 'budget' }.
+function setup(seedExtra = {}, settings = {}) {
   const store = createMemoryStore({
     Categories: STARTER_CATEGORIES.map((c) => ({ ...c })),
-    Settings: Object.entries(DEFAULT_SETTINGS).map(([key, value]) => ({ key, value: String(value) })),
+    Settings: Object.entries({ ...DEFAULT_SETTINGS, ...settings }).map(([key, value]) => ({ key, value: String(value) })),
     ...seedExtra,
   });
   const env = { token: TOKEN, nowIso: () => NOW, random: makeRandom(42) };
@@ -286,7 +287,7 @@ describe('ingest', () => {
 
 describe('categorize', () => {
   it('sets the category and returns the budget for the cycle', () => {
-    const ctx = setup();
+    const ctx = setup({}, { mode: 'budget' });
     const a = ingest(ctx, SNB_SMS, NOW);
     const res = ctx.call({ action: 'categorize', id: a.txn.id, category: 'Coffee', note: 'latte' });
     expect(res).toEqual({
@@ -297,7 +298,7 @@ describe('categorize', () => {
   });
 
   it('adds an alert at 80% of the budget', () => {
-    const ctx = setup();
+    const ctx = setup({}, { mode: 'budget' });
     ctx.call({ action: 'create', fields: { amount: 250, merchant_raw: 'Cafe X', category: 'Coffee' } });
     const a = ingest(ctx, SNB_SMS, NOW);
     const res = ctx.call({ action: 'categorize', id: a.txn.id, category: 'Coffee' });
@@ -306,7 +307,7 @@ describe('categorize', () => {
   });
 
   it('adds an over-budget alert at 100% or more', () => {
-    const ctx = setup();
+    const ctx = setup({}, { mode: 'budget' });
     ctx.call({ action: 'create', fields: { amount: 1700, merchant_raw: 'Big Restaurant', category: 'Food & Restaurants' } });
     const a = ingest(ctx, SNB_SMS, NOW);
     const res = ctx.call({ action: 'categorize', id: a.txn.id, category: 'Food & Restaurants' });

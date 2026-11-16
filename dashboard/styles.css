@@ -616,3 +616,44 @@ button, input, select { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .swipe-row { transition: none; }
 }
+
+/* ---- tracking mode: Home categories, meters, category sheet, limits review ---- */
+.lead { margin: 0; font-size: 15px; line-height: 22px; color: var(--text-2); }
+.lead strong { font-weight: 500; color: var(--text); }
+.done { display: flex; flex-direction: column; gap: 8px; }
+.done-title { margin: 0; font-size: 17px; line-height: 24px; font-weight: 500; }
+.done .btn { margin-top: 8px; }
+
+.tcat { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 12px 16px; border: 0; background: transparent; text-align: start; cursor: pointer; }
+.tcat + .tcat { border-top: 1px solid var(--hair); }
+.tcat:active { background: var(--raised); }
+.tcat-head { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.share { height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+.share-fill { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+
+.meter { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 16px; row-gap: 6px; align-items: center; padding: 12px 16px; }
+.meter + .meter { border-top: 1px solid var(--hair); }
+.meter-name { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; line-height: 20px; }
+.meter-track { grid-column: 1; grid-row: 2; height: 4px; border-radius: 2px; background: var(--raised); overflow: hidden; }
+.meter-fill { display: block; height: 100%; border-radius: 2px; background: var(--text-3); }
+.meter-end { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; text-align: end; }
+.meter-fig { font-size: 15px; line-height: 20px; white-space: nowrap; }
+.meter-sub { font-size: 13px; line-height: 16px; color: var(--text-3); white-space: nowrap; }
+.meter-note { grid-column: 1 / span 2; font-size: 13px; line-height: 16px; color: var(--text-3); }
+
+.tsheet { gap: 20px; }
+.tsheet-figs { display: flex; flex-direction: column; gap: 4px; }
+.tsheet-total { margin: 0; font-family: var(--font-mono); font-size: 28px; line-height: 34px; font-weight: 500; }
+.tsheet-total .money-unit { font-size: 15px; }
+.avg-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.avg { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: var(--r-control); background: var(--raised); }
+.avg-fig { font-size: 15px; line-height: 20px; overflow-wrap: anywhere; }
+
+.limit { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.limit + .limit { border-top: 1px solid var(--hair); }
+.limit-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.limit-name { font-size: 15px; line-height: 20px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.limit-input { display: flex; align-items: center; gap: 6px; flex: none; }
+.limit-input .input { width: 96px; text-align: end; }
+.own-note { margin: 0; font-size: 13px; line-height: 20px; color: var(--text-3); align-self: center; }
+.cedit-fields.is-single { grid-template-columns: minmax(0, 1fr); }

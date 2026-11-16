@@ -19,6 +19,10 @@ export function parseSlashDate(str) {
   const minute = Number(m[5]);
   if (!datesValid(day, month, hour, minute)) return null;
   const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  // Al Rajhi transfers can show yy/mm/dd. Day-first would land before 2020, so read it year-first.
+  if (m[3].length === 2 && year < 2020 && Number(m[1]) >= 20) {
+    return datesFormat(2000 + Number(m[1]), month, Number(m[3]), hour, minute);
+  }
   return datesFormat(year, month, day, hour, minute);
 }
 

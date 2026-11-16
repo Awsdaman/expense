@@ -24,6 +24,7 @@ function fakeUtilities(offsets) {
       const d = new Date(date.getTime() + offsets[zone] * 3600000);
       const month = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
       if (pattern === 'yyyy-MM') return month;
+      if (pattern === 'yyyy-MM-dd') return `${month}-${pad(d.getUTCDate())}`;
       return `${month}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}+03:00`;
     },
   };
@@ -55,5 +56,16 @@ describe('createSheetStore rows', () => {
     const when = new Date(Date.UTC(2026, 10, 5, 14, 30));
     const ss = fakeSpreadsheet([['cycle', 'txn_at'], ['2026-10', when]], 'Asia/Riyadh');
     expect(createSheetStore(ss).rows('Transactions')[0]).toEqual({ cycle: '2026-10', txn_at: '2026-11-05T17:30:00+03:00' });
+  });
+
+  it('reads a Settings date that Sheets turned into a date back as yyyy-MM-dd in the Sheet zone', () => {
+    globalThis.Utilities = fakeUtilities({ 'Asia/Riyadh': 3, 'Asia/Tokyo': 9 });
+    // 16 Nov 2026 at midnight in Tokyo is still 15 Nov in Riyadh.
+    const cell = new Date(Date.UTC(2026, 10, 15, 15));
+    const ss = fakeSpreadsheet([['key', 'value'], ['tracking_start', cell], ['cycle_start_day', 27]], 'Asia/Tokyo');
+    expect(createSheetStore(ss).rows('Settings')).toEqual([
+      { key: 'tracking_start', value: '2026-11-16' },
+      { key: 'cycle_start_day', value: 27 },
+    ]);
   });
 });

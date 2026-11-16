@@ -1,0 +1,13 @@
+{
+  "type": "transfer_out",
+  "direction": "out",
+  "amount": 1200.5,
+  "currency": "SAR",
+  "amount_sar": 1200.5,
+  "merchant_raw": "سارة",
+  "merchant": "سارة",
+  "card_last4": "4682",
+  "payment_method": "Local transfer",
+  "txn_at": "2026-11-15T09:05:00+03:00",
+  "bank": "alrajhi"
+}

@@ -2,25 +2,27 @@ import { parseSms } from '../parser/index.js';
 import { normalizeText } from '../parser/normalize.js';
 import { redactSms } from '../parser/redact.js';
 import { normalizeMerchant } from '../parser/merchant.js';
-import { readSettings, isTruthy } from './settings.js';
+import { readSettings, resolveTrackingStart, isTruthy, isTracking, isTrackingDate, OWN_ACCOUNT_KIND, OWN_ACCOUNT_CATEGORY } from './settings.js';
 import { formatMoney } from './format.js';
-import { cycleLabel } from './cycle.js';
+import { cycleLabel, riyadhDate } from './cycle.js';
 import { hashText, makeId, safeEqual } from './hash.js';
 import { suggestCategory, autoCategory, displayNameFor, learnRule } from './rules.js';
 import { computeSummary, budgetStatus } from './summary.js';
+import { computeTracking } from './tracking.js';
 
 export function handleRequest(params, store, env) {
   const p = params || {};
   if (!p.action) return { ok: true, service: 'iqtifaa' };
   if (!safeEqual(p.token, env.token)) return { ok: false, error: 'unauthorized' };
+  apiEnsureOwnAccount(store);
   switch (p.action) {
     case 'ingest': return apiIngest(p, store, env);
     case 'categorize': return apiCategorize(p, store, env);
     case 'update': return apiUpdate(p, store, env);
     case 'create': return apiCreate(p, store, env);
     case 'dismiss_error': return apiDismissError(p, store);
-    case 'settings': return apiUpdateSettings(p, store);
-    case 'config': return apiConfig(store);
+    case 'settings': return apiUpdateSettings(p, store, env);
+    case 'config': return apiConfig(store, env);
     case 'summary': return apiSummary(p, store, env);
     case 'transactions': return apiTransactions(p, store);
     case 'pending_count': return apiPendingCount(store);
@@ -52,8 +54,8 @@ function apiMinutesApart(a, b) {
   return Math.abs(Date.parse(a) - Date.parse(b)) / 60000;
 }
 
-function apiSettingsOf(store) {
-  return readSettings(store.rows('Settings'));
+function apiSettingsOf(store, env) {
+  return resolveTrackingStart(readSettings(store.rows('Settings')), store.rows('Transactions'), env.nowIso());
 }
 
 function apiCategoriesOf(store) {
@@ -69,6 +71,28 @@ function apiCategoriesOf(store) {
 
 function apiActiveNames(store) {
   return apiCategoriesOf(store).filter((c) => c.active).map((c) => c.name);
+}
+
+// Older Sheets were seeded before the Own account category existed. Add it once, never overwrite.
+function apiEnsureOwnAccount(store) {
+  const cats = store.rows('Categories');
+  if (cats.some((c) => c.kind === OWN_ACCOUNT_KIND || c.name === OWN_ACCOUNT_CATEGORY.name)) return;
+  const sort = cats.reduce((m, c) => Math.max(m, Number(c.sort) || 0), 0) + 1;
+  store.append('Categories', Object.assign({}, OWN_ACCOUNT_CATEGORY, { sort }));
+}
+
+function apiIsMoveOut(row) {
+  return row.type === 'transfer_out' || row.type === 'atm';
+}
+
+function apiTrackingOf(store, settings, env) {
+  return computeTracking({
+    transactions: store.rows('Transactions'),
+    categories: apiCategoriesOf(store),
+    rules: store.rows('MerchantRules'),
+    settings,
+    nowIso: env.nowIso(),
+  });
 }
 
 function apiFindTxn(store, id) {
@@ -115,23 +139,29 @@ function apiDecide(row, txns, rules) {
 function apiReply(row, store) {
   const rules = store.rows('MerchantRules');
   const cats = apiCategoriesOf(store);
-  const names = cats.filter((c) => c.active).map((c) => c.name).filter((n) => n !== 'Uncategorized');
+  // Own account is offered for transfers and cash only, last before Uncategorized.
+  const own = cats.filter((c) => c.active && c.kind === OWN_ACCOUNT_KIND).map((c) => c.name);
+  const names = cats.filter((c) => c.active && c.kind !== OWN_ACCOUNT_KIND).map((c) => c.name).filter((n) => n !== 'Uncategorized');
   const label = displayNameFor(rules, row.merchant) || row.merchant;
   const money = formatMoney(Number(row.amount), row.currency);
+  const what = row.type === 'transfer_out' ? 'Transfer ' + money + ' to ' + label
+    : row.type === 'atm' ? 'Cash ' + money + ' at ' + label
+      : money + ' at ' + label;
   const ask = row.status === 'pending' && row.direction === 'out';
   const suggested = ask ? suggestCategory(rules, row.merchant) : null;
-  const ordered = (suggested && names.includes(suggested) ? [suggested] : [])
-    .concat(names.filter((n) => n !== suggested), ['Uncategorized']);
+  const choices = apiIsMoveOut(row) ? names.concat(own) : names;
+  const ordered = (suggested && choices.includes(suggested) ? [suggested] : [])
+    .concat(choices.filter((n) => n !== suggested), ['Uncategorized']);
 
   let message;
   if (ask) {
-    message = money + ' at ' + label;
+    message = what;
   } else if (row.direction === 'in') {
     message = row.type === 'refund' ? 'Refund ' + money + ' from ' + label : 'Received ' + money;
   } else {
     const cat = cats.find((c) => c.name === row.category);
     const prefix = cat && cat.emoji ? cat.emoji + ' ' : '';
-    message = prefix + money + ' at ' + label + ' → ' + row.category + (row.status === 'auto' ? ' (auto)' : '');
+    message = prefix + what + ' → ' + row.category + (row.status === 'auto' ? ' (auto)' : '');
   }
 
   return {
@@ -142,7 +172,7 @@ function apiReply(row, store) {
     ask,
     suggested_category: suggested,
     categories: ordered,
-    prompt: ask ? money + ' at ' + label + ' — what was this for?' : '',
+    prompt: ask ? what + ' — what was this for?' : '',
     message,
   };
 }
@@ -170,7 +200,7 @@ function apiIngest(p, store, env) {
     return { ok: true, ignored: false, ask: false, parsed: false, message: "Couldn't read this bank SMS. It's waiting in the dashboard inbox." };
   }
 
-  const settings = apiSettingsOf(store);
+  const settings = apiSettingsOf(store, env);
   const txnAt = parsed.txn_at || received;
   const row = {
     id: makeId('t', env.random),
@@ -232,11 +262,18 @@ function apiCategorize(p, store, env) {
   if (typeof p.note === 'string') patch.note = p.note;
   store.update('Transactions', { id: txn.id }, patch);
 
-  const settings = apiSettingsOf(store);
+  const settings = apiSettingsOf(store, env);
   if (p.category !== 'Uncategorized') {
     apiLearn(store, txn.merchant, p.category, env.nowIso(), settings.auto_threshold);
   }
+  if (isTracking(settings)) return apiTrackingReply(store, p.category, settings, env);
   return apiBudgetReply(store, txn.cycle, p.category, settings, env);
+}
+
+// Tracking mode: no budget and no alert, only what the category has reached so far.
+function apiTrackingReply(store, category, settings, env) {
+  const entry = apiTrackingOf(store, settings, env).categories.find((c) => c.name === category);
+  return { ok: true, tracking: { category, spent: entry ? entry.spent : 0 } };
 }
 
 function apiSetDisplayName(store, merchant, name, env) {
@@ -255,7 +292,7 @@ function apiUpdate(p, store, env) {
 
   const f = p.fields;
   const has = (k) => f[k] !== undefined;
-  const settings = apiSettingsOf(store);
+  const settings = apiSettingsOf(store, env);
   const patch = {};
 
   if (has('amount')) {
@@ -306,7 +343,7 @@ function apiUpdate(p, store, env) {
 function apiCreate(p, store, env) {
   const f = p.fields;
   if (!f || typeof f !== 'object') return apiBad();
-  const settings = apiSettingsOf(store);
+  const settings = apiSettingsOf(store, env);
   const amount = Number(f.amount);
   const merchantRaw = apiText(f.merchant_raw) ? f.merchant_raw.trim() : '';
   const type = apiText(f.type) ? f.type : 'purchase';
@@ -379,7 +416,7 @@ function apiApplyCategory(store, item) {
   store.update('Categories', { name: from }, fields);
 }
 
-function apiUpdateSettings(p, store) {
+function apiUpdateSettings(p, store, env) {
   const keys = ['savings_target', 'cycle_start_day', 'alert_threshold', 'auto_threshold'];
   const scalars = keys.filter((k) => p[k] !== undefined);
   for (const k of scalars) {
@@ -396,8 +433,20 @@ function apiUpdateSettings(p, store) {
   if (p.categories !== undefined) {
     if (!Array.isArray(p.categories) || p.categories.some((c) => !c || !apiText(c.name))) return apiBad();
   }
+  if (p.mode !== undefined && p.mode !== 'tracking' && p.mode !== 'budget') return apiBad();
+  for (const k of ['tracking_start', 'tracking_end']) {
+    if (p[k] !== undefined && !isTrackingDate(p[k])) return apiBad();
+  }
 
-  const before = apiSettingsOf(store);
+  const before = apiSettingsOf(store, env);
+  const nextStart = p.tracking_start !== undefined ? p.tracking_start : before.tracking_start;
+  const nextEnd = p.tracking_end !== undefined ? p.tracking_end : before.tracking_end;
+  if ((p.tracking_start !== undefined || p.tracking_end !== undefined) && !(nextStart < nextEnd)) return apiBad();
+  for (const k of ['mode', 'tracking_start', 'tracking_end']) {
+    if (p[k] === undefined) continue;
+    const value = String(p[k]);
+    if (store.update('Settings', { key: k }, { value }) === 0) store.append('Settings', { key: k, value });
+  }
   for (const k of scalars) {
     const value = String(Number(p[k]));
     if (store.update('Settings', { key: k }, { value }) === 0) store.append('Settings', { key: k, value });
@@ -413,17 +462,21 @@ function apiUpdateSettings(p, store) {
   if (p.categories) {
     for (const item of p.categories) apiApplyCategory(store, item);
   }
-  return apiConfig(store);
+  return apiConfig(store, env);
 }
 
-function apiConfig(store) {
-  return { ok: true, settings: apiSettingsOf(store), categories: apiCategoriesOf(store) };
+function apiConfig(store, env) {
+  return { ok: true, settings: apiSettingsOf(store, env), categories: apiCategoriesOf(store) };
 }
 
 function apiSummary(p, store, env) {
-  const settings = apiSettingsOf(store);
+  const settings = apiSettingsOf(store, env);
   const cycle = apiText(p.cycle) ? String(p.cycle) : cycleLabel(env.nowIso(), settings.cycle_start_day);
-  return Object.assign({ ok: true }, apiSummaryOf(store, cycle, settings, env));
+  const tracking = isTracking(settings);
+  return Object.assign({ ok: true }, apiSummaryOf(store, cycle, settings, env), {
+    mode: tracking ? 'tracking' : 'budget',
+    tracking: tracking ? apiTrackingOf(store, settings, env) : null,
+  });
 }
 
 function apiTransactions(p, store) {
@@ -433,6 +486,13 @@ function apiTransactions(p, store) {
   }));
   if (apiText(p.cycle)) rows = rows.filter((t) => t.cycle === String(p.cycle));
   if (apiText(p.status)) rows = rows.filter((t) => t.status === p.status);
+  if (apiText(p.category)) {
+    const want = String(p.category);
+    rows = rows.filter((t) => (apiText(t.category) ? t.category : 'Uncategorized') === want);
+  }
+  // from / to: Riyadh dates, from inclusive and to exclusive.
+  if (isTrackingDate(p.from)) rows = rows.filter((t) => riyadhDate(t.txn_at || t.received_at) >= p.from);
+  if (isTrackingDate(p.to)) rows = rows.filter((t) => riyadhDate(t.txn_at || t.received_at) < p.to);
   if (apiText(p.q)) {
     const q = String(p.q).toLowerCase();
     rows = rows.filter((t) => ['merchant', 'merchant_raw', 'display_name', 'note', 'category']

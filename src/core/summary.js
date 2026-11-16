@@ -1,4 +1,4 @@
-import { activeCategories } from './settings.js';
+import { activeCategories, OWN_ACCOUNT_KIND } from './settings.js';
 import { round2 } from './format.js';
 import { riyadhDate, cycleBounds, shiftCycle, daysBetween, daysLeft } from './cycle.js';
 import { displayNameFor } from './rules.js';
@@ -17,10 +17,12 @@ function summaryMedian(values) {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-function summaryAggregate(transactions, label) {
+// ownNames: categories for transfers to your own accounts, left out of every total.
+function summaryAggregate(transactions, label, ownNames) {
   const agg = { spent: 0, refunds: 0, income: 0, count: 0, byCategory: new Map(), byMerchant: new Map(), byDate: new Map() };
   for (const t of transactions || []) {
     if (t.cycle !== label || t.status === 'ignored') continue;
+    if (ownNames && ownNames.has(t.category)) continue;
     const amt = spendAmount(t);
     if (t.type === 'refund') {
       agg.refunds += amt;
@@ -60,7 +62,8 @@ export function computeSummary({ transactions, categories, rules, settings, cycl
   const threshold = Number(settings.alert_threshold);
   const target = Number(settings.savings_target);
   const { start, end } = cycleBounds(cycle, startDay);
-  const agg = summaryAggregate(transactions, cycle);
+  const ownNames = new Set((categories || []).filter((c) => c.kind === OWN_ACCOUNT_KIND).map((c) => c.name));
+  const agg = summaryAggregate(transactions, cycle, ownNames);
   const net = agg.spent - agg.refunds;
   const left = daysLeft(nowIso, cycle, startDay);
   const safe = round2(agg.income - target - net);
@@ -69,6 +72,7 @@ export function computeSummary({ transactions, categories, rules, settings, cycl
   const activeNames = new Set(activeCategories(categories).map((c) => c.name));
   const spentOf = (name) => round2(agg.byCategory.get(name) || 0);
   const categoryRows = activeCategories((categories || []).map((c) => ({ ...c, active: true })))
+    .filter((c) => c.kind !== OWN_ACCOUNT_KIND)
     .filter((c) => activeNames.has(c.name) || spentOf(c.name) !== 0)
     .map((c) => {
       const spent = spentOf(c.name);
@@ -98,7 +102,7 @@ export function computeSummary({ transactions, categories, rules, settings, cycl
   const activeList = activeCategories(categories);
   const history = [3, 2, 1].map((back) => {
     const label = shiftCycle(cycle, -back);
-    const past = summaryAggregate(transactions, label);
+    const past = summaryAggregate(transactions, label, ownNames);
     const catSpend = {};
     for (const c of activeList) catSpend[c.name] = round2(past.byCategory.get(c.name) || 0);
     return { cycle: label, total: round2(past.spent - past.refunds), categories: catSpend };

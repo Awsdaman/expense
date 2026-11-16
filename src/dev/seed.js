@@ -200,7 +200,11 @@ export function buildSeed(nowIso) {
   }));
 
   const Categories = STARTER_CATEGORIES.map((c) => seedRow('Categories', c));
-  const Settings = Object.keys(DEFAULT_SETTINGS).map((key) => seedRow('Settings', { key, value: DEFAULT_SETTINGS[key] }));
+  // Dev only: a tracking period that started 5 weeks ago, so Home and Insights have data to show.
+  const trackStart = new Date(todayWall - 35 * SEED_DAY_MS).toISOString().slice(0, 10);
+  const trackEnd = new Date(todayWall + 26 * SEED_DAY_MS).toISOString().slice(0, 10);
+  const seedSettings = { ...DEFAULT_SETTINGS, tracking_start: trackStart, tracking_end: trackEnd };
+  const Settings = Object.keys(seedSettings).map((key) => seedRow('Settings', { key, value: seedSettings[key] }));
   const ParseErrors = [seedRow('ParseErrors', {
     id: seedId('e'),
     received_at: seedFormat(nowWall - 3 * SEED_HOUR_MS),
