@@ -9,7 +9,8 @@ export async function render(root, ctx) {
   root.replaceChildren(skeleton(5));
   try {
     await loadScreen(root, [['summary']], ([summary]) => root.replaceChildren(
-      summary.mode === 'tracking' && summary.tracking ? trackingHome(summary, ctx) : home(summary)));
+      summary.mode === 'tracking' && summary.tracking ? trackingHome(summary, ctx) : home(summary)),
+    { repaintIf: ([fresh], [shown]) => fresh.mode !== shown.mode });
   } catch (err) {
     root.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => render(root, ctx) }));
   }
@@ -62,7 +63,7 @@ function trackingHome(s, ctx) {
       })),
     h('div', { class: 'stat-grid' },
       stat({ label: 'Income', value: money(totals.income), unit: currency }),
-      stat({ label: 'Left over', value: money(leftOver), unit: currency, state: leftOver < 0 ? 'over' : undefined })),
+      stat({ label: 'Left over', value: money(leftOver), unit: currency })),
     biggest
       ? h('p', { class: 'lead' },
         'Most of it went to ', h('strong', { dir: 'auto' }, biggest.name), ': ',

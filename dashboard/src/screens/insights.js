@@ -11,7 +11,8 @@ export async function render(root) {
   root.replaceChildren(skeleton(6));
   try {
     await loadScreen(root, [['summary']], ([summary]) => root.replaceChildren(
-      summary.mode === 'tracking' && summary.tracking ? trackingInsights(summary) : insights(summary)));
+      summary.mode === 'tracking' && summary.tracking ? trackingInsights(summary) : insights(summary)),
+    { repaintIf: ([fresh], [shown]) => fresh.mode !== shown.mode });
   } catch (err) {
     root.replaceChildren(errorState({ message: errorMessage(err), onRetry: () => render(root) }));
   }

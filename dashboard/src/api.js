@@ -132,7 +132,9 @@ export function cachedGet(action, params = {}) {
 // Apps Script takes about 2 s per call, so a screen paints its saved copies at once and repaints
 // when fresh data differs. The repaint is skipped once the person taps or types on the screen,
 // or after they left it. Throws only when there was nothing to show.
-export async function loadScreen(root, requests, paint) {
+// repaintIf(fresh, shown): optional; returning true repaints even after a tap, e.g. when the
+// saved copy is from another mode (budget vs tracking) and would show the wrong screen.
+export async function loadScreen(root, requests, paint, { repaintIf } = {}) {
   const saved = requests.map(([action, params]) => cachedGet(action, params));
   const shown = saved.every(Boolean) ? saved : null;
   if (shown) paint(shown);
@@ -147,7 +149,9 @@ export async function loadScreen(root, requests, paint) {
     if (shown) return;
     throw err;
   }
-  if (!root.isConnected || (shown && (touched || JSON.stringify(fresh) === JSON.stringify(shown)))) return;
+  if (!root.isConnected) return;
+  const forced = shown && repaintIf ? repaintIf(fresh, shown) : false;
+  if (!forced && shown && (touched || JSON.stringify(fresh) === JSON.stringify(shown))) return;
   paint(fresh);
 }
 
