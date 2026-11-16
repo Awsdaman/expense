@@ -548,6 +548,18 @@ describe('settings and config', () => {
 });
 
 describe('summary', () => {
+  it('does not fail on a row whose date cannot be read, still counting its amount', () => {
+    const ctx = setup();
+    ingest(ctx, SNB_SMS, NOW);
+    ctx.store.append('Transactions', {
+      id: 't_typed', txn_at: '16/11/2026', received_at: '', type: 'purchase', direction: 'out', amount: 20,
+      currency: 'SAR', amount_sar: 20, merchant: 'X', category: 'Coffee', status: 'categorized', cycle: '2026-10',
+    });
+    const res = ctx.call({ action: 'summary' });
+    expect(res.ok).toBe(true);
+    expect(res.totals.spent).toBe(34);
+  });
+
   it('defaults to the current cycle and counts only that cycle', () => {
     const ctx = setup();
     ingest(ctx, SNB_SMS, NOW);

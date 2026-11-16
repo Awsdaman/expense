@@ -35,7 +35,9 @@ function summaryAggregate(transactions, label, ownNames) {
       m.total += amt;
       m.count += 1;
       agg.byMerchant.set(t.merchant, m);
-      summaryAddTo(agg.byDate, riyadhDate(t.txn_at || t.received_at), amt);
+      // A date typed by hand may not parse: count the amount, leave it out of the daily series.
+      const when = t.txn_at || t.received_at;
+      if (when && !isNaN(Date.parse(when))) summaryAddTo(agg.byDate, riyadhDate(when), amt);
     } else if (t.direction === 'in') {
       agg.income += amt;
     }

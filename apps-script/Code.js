@@ -31,6 +31,9 @@ function respond_(params) {
     // Log the action name and the error message only, never the params.
     console.error('action=' + params.action + ' error=' + err.message);
     res = { ok: false, error: 'server_error' };
+    // The error message (never params or data) goes back only to a caller with the right token,
+    // so the dashboard can show what broke.
+    if (safeEqual(params.token, buildEnv_().token)) res.detail = String(err && err.message || '').slice(0, 200);
   } finally {
     if (locked) lock.releaseLock();
   }

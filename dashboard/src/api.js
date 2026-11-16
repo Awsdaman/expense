@@ -18,12 +18,14 @@ const MESSAGES = {
 
 // Turns an error from this module into a sentence for the screen.
 export function errorMessage(err) {
-  return MESSAGES[err?.code] || MESSAGES.server_error;
+  const text = MESSAGES[err?.code] || MESSAGES.server_error;
+  return err?.detail ? `${text} (${err.detail})` : text;
 }
 
-function fail(code) {
+function fail(code, detail) {
   const err = new Error(code);
   err.code = code;
+  if (detail) err.detail = String(detail);
   return err;
 }
 
@@ -75,7 +77,7 @@ async function send(url, init) {
     throw fail('bad_response');
   }
   if (!data || typeof data !== 'object') throw fail('bad_response');
-  if (data.ok === false) throw fail(data.error || 'server_error');
+  if (data.ok === false) throw fail(data.error || 'server_error', data.detail);
   return data;
 }
 
