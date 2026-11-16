@@ -491,8 +491,10 @@ function apiTransactions(p, store) {
     rows = rows.filter((t) => (apiText(t.category) ? t.category : 'Uncategorized') === want);
   }
   // from / to: Riyadh dates, from inclusive and to exclusive.
-  if (isTrackingDate(p.from)) rows = rows.filter((t) => riyadhDate(t.txn_at || t.received_at) >= p.from);
-  if (isTrackingDate(p.to)) rows = rows.filter((t) => riyadhDate(t.txn_at || t.received_at) < p.to);
+  // Rows without a usable date never match a range.
+  const dayOf = (t) => (apiValidDate(t.txn_at || t.received_at) ? riyadhDate(t.txn_at || t.received_at) : '');
+  if (isTrackingDate(p.from)) rows = rows.filter((t) => dayOf(t) !== '' && dayOf(t) >= p.from);
+  if (isTrackingDate(p.to)) rows = rows.filter((t) => dayOf(t) !== '' && dayOf(t) < p.to);
   if (apiText(p.q)) {
     const q = String(p.q).toLowerCase();
     rows = rows.filter((t) => ['merchant', 'merchant_raw', 'display_name', 'note', 'category']

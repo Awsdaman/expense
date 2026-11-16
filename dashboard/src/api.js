@@ -146,8 +146,16 @@ export async function loadScreen(root, requests, paint, { repaintIf } = {}) {
   try {
     fresh = await Promise.all(requests.map(([action, params]) => apiGet(action, params)));
   } catch (err) {
-    if (shown) return;
-    throw err;
+    if (!shown) throw err;
+    // Keep the saved copy, but say it could not be refreshed instead of failing silently.
+    if (root.isConnected) {
+      const line = document.createElement('p');
+      line.className = 'offline';
+      line.setAttribute('role', 'status');
+      line.textContent = `Couldn't refresh: ${errorMessage(err)}. Showing the last saved copy.`;
+      root.prepend(line);
+    }
+    return;
   }
   if (!root.isConnected) return;
   const forced = shown && repaintIf ? repaintIf(fresh, shown) : false;

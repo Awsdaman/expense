@@ -91,7 +91,10 @@ export function computeTracking({ transactions, categories, rules, settings, now
 
   for (const t of transactions || []) {
     if (t.status === 'ignored') continue;
-    const date = riyadhDate(t.txn_at || t.received_at);
+    // Rows cleared or typed by hand in the Sheet may have no usable date.
+    const when = t.txn_at || t.received_at;
+    if (!when || isNaN(Date.parse(when))) continue;
+    const date = riyadhDate(when);
     if (date < start || date >= end) continue;
     const category = t.category ? String(t.category) : TRACK_UNCATEGORIZED;
     if (isOwn(category)) continue;

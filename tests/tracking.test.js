@@ -109,6 +109,13 @@ describe('computeTracking', () => {
     expect(t.suggestions.find((s) => s.name === 'Travel').suggested).toBe(0);
   });
 
+  it('skips rows without a usable date, such as a row cleared in the Sheet', () => {
+    const blank = { id: '', txn_at: '', received_at: '', status: '', direction: '', amount: '', category: '' };
+    const typed = txn({ txn_at: 'yesterday', amount: 10, category: 'Coffee' });
+    const r = track('2026-11-29T12:00:00+03:00', [...TXNS, blank, typed]);
+    expect(r.totals.net_spent).toBe(1915);
+  });
+
   it('is done once today reaches the end', () => {
     expect(track('2027-01-16T08:00:00+03:00').done).toBe(true);
     expect(track('2027-01-15T23:00:00+03:00').done).toBe(false);
@@ -208,11 +215,12 @@ describe('API in tracking mode', () => {
   });
 
   it('transactions filter by category and date range', () => {
-    const { call } = setup();
+    const { call, store } = setup();
     call({ action: 'create', fields: { amount: 10, merchant_raw: 'A', category: 'Coffee', txn_at: '2026-11-15T10:00:00+03:00' } });
     call({ action: 'create', fields: { amount: 20, merchant_raw: 'B', category: 'Coffee', txn_at: '2026-11-17T10:00:00+03:00' } });
     call({ action: 'create', fields: { amount: 30, merchant_raw: 'C', category: 'Groceries', txn_at: '2026-11-17T11:00:00+03:00' } });
     call({ action: 'create', fields: { amount: 40, merchant_raw: 'D', txn_at: '2026-11-18T11:00:00+03:00' } });
+    store.append('Transactions', { id: 't_blank', txn_at: '', received_at: '', category: 'Coffee', amount: 5 });
     const coffee = call({ action: 'transactions', category: 'Coffee', from: '2026-11-16', to: '2027-01-16' });
     expect(coffee.transactions.map((r) => r.amount)).toEqual([20]);
     const unc = call({ action: 'transactions', category: 'Uncategorized', from: '2026-11-16' });
